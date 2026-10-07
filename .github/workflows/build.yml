@@ -1,0 +1,44 @@
+name: Build APK Musi
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+
+      - name: Decompresser le projet
+        run: unzip -o musi-android.zip
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Preparer et compiler
+        working-directory: musi-android
+        run: |
+          npm install --legacy-peer-deps
+          npm run build:js
+          npx cap add android
+          npx cap sync android
+          bash patch-manifest.sh
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Envoyer l APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: musi-apk
+          path: musi-android/android/app/build/outputs/apk/debug/app-debug.apk
+          
