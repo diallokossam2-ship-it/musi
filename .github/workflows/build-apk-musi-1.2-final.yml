@@ -22,16 +22,16 @@ jobs:
           test -f "musi-android/src/plugins.js"
           echo "Projet Musi detecte."
 
-      - name: 3 - Installer Node 22
+      - name: 3 - Installer Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
 
-      - name: 4 - Installer Java 21
+      - name: 4 - Installer Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
 
       - name: 5 - Installer les dependances
         working-directory: musi-android
@@ -47,7 +47,7 @@ jobs:
       - name: 7 - Creer et synchroniser Android
         working-directory: musi-android
         run: |
-          npx cap add android
+          npx cap add android || true
           npx cap sync android
           bash patch-manifest.sh
 
