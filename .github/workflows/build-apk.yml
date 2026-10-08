@@ -1,4 +1,4 @@
-name: Build APK Musi Player
+name: Build APK Musi Player - Local AI
 
 on:
   workflow_dispatch:
@@ -6,40 +6,47 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     steps:
-      - name: 1 - Recuperer le depot
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 2 - Generer l application Musi - Lecteur Audio & Assistant Vocal
-        shell: bash
-        run: |
-          mkdir -p musi-android/src musi-android/www
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
 
-          # package.json
-          cat << 'EOF' > musi-android/package.json
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Create Web App and Capacitor Project
+        run: |
+          mkdir -p musi-android/www
+          cd musi-android
+
+          # Initialisation de package.json
+          cat << 'EOF' > package.json
           {
-            "name": "musi-android",
-            "version": "1.3.0",
-            "description": "Musi Music Player & Voice Assistant App",
-            "main": "src/plugins.js",
-            "scripts": {
-              "build:js": "echo 'Building JS plugins...'",
-              "cap:sync": "cap sync android"
-            },
+            "name": "musi-player",
+            "version": "1.0.0",
+            "description": "Musi Player avec IA Locale",
+            "main": "index.js",
             "dependencies": {
-              "@capacitor/core": "^6.0.0",
-              "@capacitor/android": "^6.0.0"
+              "@capacitor/core": "^5.0.0",
+              "@capacitor/android": "^5.0.0"
             },
             "devDependencies": {
-              "@capacitor/cli": "^6.0.0"
+              "@capacitor/cli": "^5.0.0"
             }
           }
           EOF
 
-          # capacitor.config.json
-          cat << 'EOF' > musi-android/capacitor.config.json
+          npm install
+
+          # Configuration Capacitor
+          cat << 'EOF' > capacitor.config.json
           {
             "appId": "com.musi.app",
             "appName": "Musi Player",
@@ -48,376 +55,218 @@ jobs:
           }
           EOF
 
-          # index.html - Lecteur Audio + Commande Vocale + Audio Ducking (Baisse du son)
-          cat << 'EOF' > musi-android/www/index.html
+          # Creation du fichier HTML/JS principal
+          cat << 'EOF' > www/index.html
           <!DOCTYPE html>
           <html lang="fr">
           <head>
               <meta charset="UTF-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Musi Audio & Voice Player</title>
+              <title>Musi Player AI</title>
               <style>
-                  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-                  body { background: #0b0f19; color: #f8fafc; display: flex; flex-direction: column; min-height: 100vh; padding: 16px; align-items: center; justify-content: space-between; }
-                  
-                  header { width: 100%; text-align: center; margin-top: 10px; }
-                  header h1 { font-size: 1.8rem; color: #38bdf8; font-weight: 800; }
-                  header p { font-size: 0.85rem; color: #94a3b8; }
-
-                  /* Section Lecteur de Musique */
-                  .player-card { width: 100%; max-width: 420px; background: #1e293b; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; margin: 15px 0; border: 1px solid rgba(255,255,255,0.08); }
-                  .album-art { width: 140px; height: 140px; margin: 0 auto 16px; background: linear-gradient(135deg, #0284c7, #4f46e5); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; box-shadow: 0 8px 20px rgba(2, 132, 199, 0.4); }
-                  .song-title { font-size: 1.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
-                  .artist-name { font-size: 0.9rem; color: #38bdf8; margin-bottom: 16px; }
-
-                  .progress-container { width: 100%; background: #334155; height: 6px; border-radius: 3px; margin: 12px 0; cursor: pointer; position: relative; }
-                  .progress-bar { width: 0%; height: 100%; background: #38bdf8; border-radius: 3px; }
-                  
-                  .controls { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 16px; }
-                  .btn-ctrl { background: #334155; border: none; color: white; width: 48px; height: 48px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-                  .btn-main { width: 60px; height: 60px; font-size: 1.6rem; background: #0284c7; }
-
-                  .vol-slider-box { display: flex; align-items: center; gap: 10px; margin-top: 16px; justify-content: center; color: #94a3b8; font-size: 0.85rem; }
-                  .vol-slider { width: 70%; height: 4px; border-radius: 2px; accent-color: #38bdf8; }
-
-                  /* Section Assistant Vocal */
-                  .voice-section { width: 100%; max-width: 420px; background: #0f172a; border-radius: 20px; padding: 16px; text-align: center; border: 1px solid #1e293b; }
-                  .mic-trigger { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, #10b981, #059669); border: none; color: white; font-size: 1.8rem; cursor: pointer; box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); margin-bottom: 12px; transition: transform 0.2s; }
-                  .mic-trigger.listening { background: linear-gradient(135deg, #ef4444, #b91c1c); animation: pulse 1.5s infinite; }
-                  @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-
-                  .voice-status { font-size: 0.9rem; color: #38bdf8; font-weight: 600; min-height: 24px; }
-                  .user-transcript { font-size: 0.8rem; color: #94a3b8; font-style: italic; min-height: 20px; margin-top: 4px; }
-
-                  /* Liste de lecture */
-                  .playlist { width: 100%; max-width: 420px; text-align: left; margin-top: 10px; }
-                  .playlist-title { font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 8px; }
-                  .track-item { background: #1e293b; padding: 10px 14px; border-radius: 10px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 0.9rem; }
-                  .track-item.active { border-left: 4px solid #38bdf8; background: #0f172a; color: #38bdf8; font-weight: 600; }
+                  body {
+                      font-family: Arial, sans-serif;
+                      background-color: #121212;
+                      color: #ffffff;
+                      display: flex;
+                      flex-direction: column;
+                      align-items: center;
+                      justify-content: center;
+                      height: 100vh;
+                      margin: 0;
+                      padding: 20px;
+                      box-sizing: border-box;
+                  }
+                  .card {
+                      background: #1e1e1e;
+                      padding: 25px;
+                      border-radius: 15px;
+                      text-align: center;
+                      box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+                      width: 100%;
+                      max-width: 400px;
+                  }
+                  button {
+                      background-color: #1db954;
+                      color: white;
+                      border: none;
+                      padding: 15px 25px;
+                      font-size: 16px;
+                      border-radius: 30px;
+                      cursor: pointer;
+                      margin: 10px;
+                      font-weight: bold;
+                  }
+                  button:disabled {
+                      background-color: #555;
+                  }
+                  .status {
+                      margin-top: 15px;
+                      font-size: 14px;
+                      color: #b3b3b3;
+                  }
+                  .response {
+                      margin-top: 20px;
+                      padding: 10px;
+                      background: #282828;
+                      border-radius: 8px;
+                      min-height: 50px;
+                  }
               </style>
           </head>
           <body>
-              <header>
-                  <h1>Musi Voice Player</h1>
-                  <p>Lecteur Musique & Commande Vocale à distance</p>
-              </header>
-
-              <!-- Card Lecteur Audio -->
-              <div class="player-card">
-                  <div class="album-art" id="albumArt">🎵</div>
-                  <div class="song-title" id="songTitle">Sélectionnez une musique</div>
-                  <div class="artist-name" id="artistName">Musi Local Library</div>
-
-                  <audio id="audioPlayer" preload="metadata"></audio>
-
-                  <div class="progress-container" id="progressContainer">
-                      <div class="progress-bar" id="progressBar"></div>
+              <div class="card">
+                  <h2>Musi Player (IA Locale)</h2>
+                  <audio id="audioPlayer" controls style="width: 100%; margin-top: 15px;"></audio>
+                  <div style="margin-top: 20px;">
+                      <button id="btnListen">Démarrer l'écoute ("Musi")</button>
                   </div>
-
-                  <div class="controls">
-                      <button class="btn-ctrl" onclick="prevTrack()">⏮️</button>
-                      <button class="btn-ctrl btn-main" id="playBtn" onclick="togglePlay()">▶️</button>
-                      <button class="btn-ctrl" onclick="nextTrack()">⏭️</button>
-                  </div>
-
-                  <div class="vol-slider-box">
-                      <span>🔈</span>
-                      <input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="80" oninput="setVolume(this.value)">
-                      <span id="volLabel">80%</span>
-                  </div>
-              </div>
-
-              <!-- Assistant Vocal -->
-              <div class="voice-section">
-                  <button class="mic-trigger" id="micBtn" onclick="startListening()">🎙️</button>
-                  <div class="voice-status" id="voiceStatus">Appuyez ou dites "Musi" pour parler</div>
-                  <div class="user-transcript" id="userTranscript">Ex: "Joue la chanson 1", "Augmente le volume de 30%"</div>
-              </div>
-
-              <!-- Playlist local -->
-              <div class="playlist">
-                  <div class="playlist-title">Répertoire local</div>
-                  <div id="playlistContainer"></div>
+                  <div class="status" id="statusText">Statut : En attente...</div>
+                  <div class="response" id="responseText">Dites "Musi" puis votre commande...</div>
               </div>
 
               <script>
-                  // Demandes Répertoire Démo
-                  const songs = [
-                      { title: "Rythme Afrobeats", artist: "Musi Audio 1", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
-                      { title: "Melodie Chill Out", artist: "Musi Audio 2", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
-                      { title: "Acoustic Vibes", artist: "Musi Audio 3", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" }
-                  ];
-
-                  let currentTrackIndex = 0;
-                  let normalVolume = 0.8;
-                  let isDucked = false;
-
                   const audio = document.getElementById('audioPlayer');
-                  const playBtn = document.getElementById('playBtn');
-                  const songTitle = document.getElementById('songTitle');
-                  const artistName = document.getElementById('artistName');
-                  const progressBar = document.getElementById('progressBar');
-                  const volSlider = document.getElementById('volSlider');
-                  const volLabel = document.getElementById('volLabel');
-                  const voiceStatus = document.getElementById('voiceStatus');
-                  const userTranscript = document.getElementById('userTranscript');
+                  const statusText = document.getElementById('statusText');
+                  const responseText = document.getElementById('responseText');
+                  const btnListen = document.getElementById('btnListen');
 
-                  function initPlaylist() {
-                      const container = document.getElementById('playlistContainer');
-                      container.innerHTML = '';
-                      songs.forEach((song, idx) => {
-                          const div = document.createElement('div');
-                          div.className = 'track-item' + (idx === currentTrackIndex ? ' active' : '');
-                          div.innerHTML = `<span>${idx + 1}. ${song.title}</span><small>${song.artist}</small>`;
-                          div.onclick = () => loadAndPlay(idx);
-                          container.appendChild(div);
-                      });
-                  }
+                  let recognition;
+                  let silenceTimer;
+                  const SILENCE_TIMEOUT = 5000; // 5 secondes de tolérance au silence
 
-                  function loadAndPlay(index) {
-                      currentTrackIndex = index;
-                      audio.src = songs[index].src;
-                      songTitle.innerText = songs[index].title;
-                      artistName.innerText = songs[index].artist;
-                      audio.volume = normalVolume;
-                      initPlaylist();
-                      audio.play();
-                      playBtn.innerText = "⏸️";
-                  }
-
-                  function togglePlay() {
-                      if (audio.paused) {
-                          if (!audio.src) loadAndPlay(0);
-                          else audio.play();
-                          playBtn.innerText = "⏸️";
-                      } else {
-                          audio.pause();
-                          playBtn.innerText = "▶️";
-                      }
-                  }
-
-                  function nextTrack() {
-                      currentTrackIndex = (currentTrackIndex + 1) % songs.length;
-                      loadAndPlay(currentTrackIndex);
-                  }
-
-                  function prevTrack() {
-                      currentTrackIndex = (currentTrackIndex - 1 + songs.length) % songs.length;
-                      loadAndPlay(currentTrackIndex);
-                  }
-
-                  function setVolume(val) {
-                      normalVolume = val / 100;
-                      if (!isDucked) {
-                          audio.volume = normalVolume;
-                      }
-                      volSlider.value = val;
-                      volLabel.innerText = Math.round(val) + "%";
-                  }
-
-                  audio.addEventListener('timeupdate', () => {
-                      if (audio.duration) {
-                          const pct = (audio.currentTime / audio.duration) * 100;
-                          progressBar.style.width = pct + "%";
-                      }
-                  });
-
-                  // AUDIO DUCKING (Baisse du son de musique a 10% pendant la parole/ecoute)
-                  function duckAudio() {
-                      if (!audio.paused) {
-                          isDucked = true;
-                          audio.volume = normalVolume * 0.10; // Réduit à 10%
-                      }
-                  }
-
-                  function unduckAudio() {
-                      isDucked = false;
-                      audio.volume = normalVolume;
-                  }
-
-                  // RECONNAISSANCE ET ASSISTANT VOCAL
+                  // Verification de la reconnaissance vocale
                   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                  let recognition = null;
 
                   if (SpeechRecognition) {
                       recognition = new SpeechRecognition();
+                      recognition.continuous = true;
+                      recognition.interimResults = true;
                       recognition.lang = 'fr-FR';
-                      recognition.continuous = false;
 
-                      recognition.onstart = function() {
-                          duckAudio(); // Baisse le son de la musique
-                          document.getElementById('micBtn').classList.add('listening');
-                          voiceStatus.innerText = "J'écoute votre commande...";
+                      let fullTranscript = '';
+
+                      recognition.onstart = () => {
+                          statusText.innerText = "Statut : Écoute active (parlez librement)...";
                       };
 
-                      recognition.onresult = function(event) {
-                          const transcript = event.results[0][0].transcript;
-                          userTranscript.innerText = '"' + transcript + '"';
-                          parseVoiceCommand(transcript);
-                      };
+                      recognition.onresult = (event) => {
+                          clearTimeout(silenceTimer);
+                          let interimTranscript = '';
 
-                      recognition.onerror = function(e) {
-                          unduckAudio();
-                          document.getElementById('micBtn').classList.remove('listening');
-                          voiceStatus.innerText = "Erreur micro: " + e.error;
-                      };
-
-                      recognition.onend = function() {
-                          document.getElementById('micBtn').classList.remove('listening');
-                      };
-                  }
-
-                  function startListening() {
-                      if (recognition) recognition.start();
-                      else alert("Reconnaissance vocale non disponible.");
-                  }
-
-                  // PARSER COMMANDES VOCALES
-                  function parseVoiceCommand(text) {
-                      const lower = text.toLowerCase();
-                      let response = "";
-
-                      // Augmenter le volume
-                      if (lower.includes("augmente") || lower.includes("plus fort")) {
-                          let match = lower.match(/(\d+)/);
-                          let delta = match ? parseInt(match[1]) : 20;
-                          let newVol = Math.min(100, Math.round((normalVolume * 100) + delta));
-                          setVolume(newVol);
-                          response = `Oui patron, j'augmente le volume à ${newVol}%.`;
-                      }
-                      // Diminuer le volume
-                      else if (lower.includes("diminue") || lower.includes("baisser") || lower.includes("moins fort")) {
-                          let match = lower.match(/(\d+)/);
-                          let delta = match ? parseInt(match[1]) : 20;
-                          let newVol = Math.max(0, Math.round((normalVolume * 100) - delta));
-                          setVolume(newVol);
-                          response = `Oui patron, j'ai diminué le volume à ${newVol}%.`;
-                      }
-                      // Mettre le volume à X%
-                      else if (lower.includes("volume")) {
-                          let match = lower.match(/(\d+)/);
-                          if (match) {
-                              let newVol = Math.min(100, Math.max(0, parseInt(match[1])));
-                              setVolume(newVol);
-                              response = `Oui patron, volume réglé à ${newVol}%.`;
-                          }
-                      }
-                      // Pause
-                      else if (lower.includes("pause") || lower.includes("stoppe") || lower.includes("arrête")) {
-                          audio.pause();
-                          playBtn.innerText = "▶️";
-                          response = "Oui patron, musique mise en pause.";
-                      }
-                      // Lecture / Reprendre
-                      else if (lower.includes("joue") || lower.includes("lecture") || lower.includes("reprends") || lower.includes("lance")) {
-                          // Chercher par titre de chanson
-                          let found = false;
-                          songs.forEach((s, i) => {
-                              if (lower.includes(s.title.toLowerCase()) || lower.includes("chanson " + (i + 1))) {
-                                  loadAndPlay(i);
-                                  response = `Oui patron, je lance ${s.title}.`;
-                                  found = true;
+                          for (let i = event.resultIndex; i < event.results.length; ++i) {
+                              if (event.results[i].isFinal) {
+                                  fullTranscript += event.results[i][0].transcript + ' ';
+                              } else {
+                                  interimTranscript += event.results[i][0].transcript;
                               }
-                          });
-                          if (!found) {
-                              if (audio.paused) audio.play();
-                              playBtn.innerText = "⏸️";
-                              response = "Oui patron, je lance la musique.";
                           }
-                      }
-                      // Suivante
-                      else if (lower.includes("suivante") || lower.includes("suivant")) {
-                          nextTrack();
-                          response = `Oui patron, passage à ${songs[currentTrackIndex].title}.`;
-                      }
-                      // Précédente
-                      else if (lower.includes("précédente") || lower.includes("précédent")) {
-                          prevTrack();
-                          response = `Oui patron, retour à ${songs[currentTrackIndex].title}.`;
-                      }
-                      else {
-                          response = "Commande reçue patron. Je n'ai pas bien compris l'action.";
-                      }
 
-                      voiceStatus.innerText = response;
-                      speakResponse(response);
+                          responseText.innerText = fullTranscript + interimTranscript;
+
+                          // Réinitialiser le minuteur de silence (attendre 5s avant de traiter la commande)
+                          silenceTimer = setTimeout(() => {
+                              recognition.stop();
+                              processCommand(fullTranscript.trim());
+                              fullTranscript = '';
+                          }, SILENCE_TIMEOUT);
+                      };
+
+                      recognition.onerror = (event) => {
+                          statusText.innerText = "Erreur d'écoute : " + event.error;
+                      };
+
+                      recognition.onend = () => {
+                          statusText.innerText = "Statut : En attente...";
+                      };
+
+                      btnListen.addEventListener('click', () => {
+                          fullTranscript = '';
+                          responseText.innerText = "À l'écoute...";
+                          recognition.start();
+                      });
+                  } else {
+                      statusText.innerText = "Reconnaissance vocale non supportée par ce composant.";
                   }
 
-                  // SYNTHÈSE VOCALE AUDIBLE AVEC AUDIO DUCKING
-                  function speakResponse(text) {
+                  // Traitement des commandes et Synthèse vocale Hors-Ligne
+                  function processCommand(text) {
+                      if (!text) return;
+                      
+                      let lower = text.toLowerCase();
+                      let reply = "";
+
+                      // Audio Ducking : Baisse le son de la musique pendant que l'IA parle
+                      let originalVolume = audio.volume;
+                      audio.volume = 0.1;
+
+                      if (lower.includes("pause") || lower.includes("stoppe")) {
+                          audio.pause();
+                          reply = "J'ai mis la musique en pause, patron.";
+                      } else if (lower.includes("joue") || lower.includes("lance")) {
+                          audio.play();
+                          reply = "Lecture en cours, patron.";
+                      } else if (lower.includes("augmente") || lower.includes("plus fort")) {
+                          audio.volume = Math.min(1, originalVolume + 0.2);
+                          reply = "J'ai augmenté le volume.";
+                      } else if (lower.includes("baisse") || lower.includes("diminue")) {
+                          audio.volume = Math.max(0, originalVolume - 0.2);
+                          reply = "J'ai baissé le volume.";
+                      } else {
+                          reply = "J'ai bien entendu : " + text + ". Traitement local en cours.";
+                      }
+
+                      speakOut(reply, () => {
+                          // Restauration du volume original après la réponse vocale
+                          if (!lower.includes("baisse") && !lower.includes("augmente")) {
+                              audio.volume = originalVolume;
+                          }
+                      });
+                  }
+
+                  // Synthèse vocale native Hors-Ligne
+                  function speakOut(text, onEndCallback) {
                       if ('speechSynthesis' in window) {
                           window.speechSynthesis.cancel();
                           const utterance = new SpeechSynthesisUtterance(text);
                           utterance.lang = 'fr-FR';
-                          utterance.volume = 1.0;
                           utterance.rate = 1.0;
 
-                          utterance.onstart = function() {
-                              duckAudio(); // Garde le son de la musique à 10%
-                          };
-
-                          utterance.onend = function() {
-                              unduckAudio(); // Remet le son normal une fois la réponse terminée
+                          utterance.onend = () => {
+                              if (onEndCallback) onEndCallback();
                           };
 
                           window.speechSynthesis.speak(utterance);
                       } else {
-                          unduckAudio();
+                          if (onEndCallback) onEndCallback();
                       }
                   }
-
-                  initPlaylist();
               </script>
           </body>
           </html>
           EOF
 
-          echo "Dossier Musi Player avec Lecteur Audio & Commande Vocale genere !"
+          # Initialisation du projet Android Capacitor
+          npx cap add android
 
-      - name: 3 - Configurer Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: 4 - Configurer Java JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: 5 - Installer les dependances npm
-        working-directory: musi-android
+      - name: Configure Android Permissions
         run: |
-          npm install --legacy-peer-deps
-
-      - name: 6 - Generer les scripts JS
-        working-directory: musi-android
-        run: |
-          npm run build:js || true
-
-      - name: 7 - Preparer le projet Android et Permissions Micro
-        working-directory: musi-android
-        run: |
-          npx cap add android || true
-          npx cap sync android || true
+          MANIFEST="musi-android/android/app/src/main/AndroidManifest.xml"
           
-          # Ajout explicite des permissions Micro et Audio dans AndroidManifest.xml
-          MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST_PATH" ]; then
-            sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />' "$MANIFEST_PATH"
-            echo "Permissions Micro et Stockage ajoutees !"
-          fi
+          # Ajout des permissions Record Audio et Modification Audio
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.RECORD_AUDIO" \/>' $MANIFEST
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" \/>' $MANIFEST
 
-      - name: 8 - Compiler l APK Debug
-        working-directory: musi-android/android
+      - name: Build Android APK
         run: |
+          cd musi-android
+          npx cap copy android
+          cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug
 
-      - name: 9 - Exporter l APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: musi-debug-apk
           path: musi-android/android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
