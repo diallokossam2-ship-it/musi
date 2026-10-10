@@ -27,6 +27,8 @@ class MainActivity : Activity() {
     private var chapter = 3
     private var pageIndex = 0
     private var activeScreen = "home"
+    private var currentTitle = "Accueil"
+    private var currentSubtitle = "Un moment avec la Parole"
     private var testament = 0
     private var highlightedVerse = 0
     private lateinit var screenHost: FrameLayout
@@ -82,8 +84,8 @@ class MainActivity : Activity() {
         brand.addView(names,LinearLayout.LayoutParams(0,-2,1f))
         brand.addView(makeTextButton("⌕") { showSearch() },LinearLayout.LayoutParams(dp(46),dp(42)))
         top.addView(brand)
-        titleView = label("Accueil",22f,ink,true).apply { setPadding(0,dp(12),0,0) }
-        subtitleView = label("Un moment avec la Parole",12f,muted,false)
+        titleView = label(currentTitle,22f,ink,true).apply { setPadding(0,dp(12),0,0) }
+        subtitleView = label(currentSubtitle,12f,muted,false)
         top.addView(titleView); top.addView(subtitleView)
         shell.addView(top,LinearLayout.LayoutParams(-1,-2))
         screenHost = FrameLayout(this)
@@ -116,7 +118,7 @@ class MainActivity : Activity() {
     }
 
     private fun setScreen(name:String,title:String,subtitle:String) {
-        activeScreen=name; titleView.text=title; subtitleView.text=subtitle; showShell()
+        activeScreen=name; currentTitle=title; currentSubtitle=subtitle; showShell()
     }
     private fun body() = LinearLayout(this).apply {
         orientation=LinearLayout.VERTICAL; setPadding(dp(18),dp(14),dp(18),dp(22)); setBackgroundColor(cream)
