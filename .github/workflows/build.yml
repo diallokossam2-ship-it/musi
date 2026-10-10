@@ -38,6 +38,9 @@ jobs:
         run: |
           mkdir -p project
           unzip -o lkh-projet.zip -d project
+          # Kivy 2.3.0 ne compile pas avec la recette Python 3.14 actuelle.
+          # Forcer python-for-android stable (Python jusqu'à 3.12) pour cette application.
+          sed -i '/^\[app\]/a p4a.branch = master' project/buildozer.spec
 
       - name: Installer les dépendances Python
         run: |
