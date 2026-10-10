@@ -28,6 +28,9 @@ jobs:
 
       - name: Installer les outils Android
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+          accept-android-sdk-licenses: true
 
       - name: Accepter la licence Android et installer Android 35
         run: |
