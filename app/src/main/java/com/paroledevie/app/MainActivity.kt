@@ -236,7 +236,8 @@ class MainActivity : Activity() {
                 demoVerses.forEach { (reference, verses) ->
                     verses.forEach { line ->
                         val parts = line.split("|", limit = 2)
-                        val fullRef = "$reference:${parts[0]}"
+                        val referenceParts = reference.split("|")
+                        val fullRef = "${referenceParts[0]} ${referenceParts.getOrElse(1) { "1" }}:${parts[0]}"
                         if (line.contains(query, ignoreCase = true) || reference.contains(query, ignoreCase = true)) {
                             results.add(fullRef to parts.getOrElse(1) { "" })
                         }
