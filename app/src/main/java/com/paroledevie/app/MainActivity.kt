@@ -43,29 +43,28 @@ class MainActivity : Activity() {
     private lateinit var favoriteButton: Button
     private val prefs by lazy { getSharedPreferences("parole_de_vie", MODE_PRIVATE) }
 
-    // Extraits de démonstration temporaires. La Bible complète du PDF n'est pas encore intégrée.
-    private val demoVerses = mapOf(
-        "Genèse|1" to listOf(
-            "1|Au commencement, Dieu créa les cieux et la terre.",
-            "2|La terre était informe et vide; il y avait des ténèbres à la surface de l'abîme, et l'esprit de Dieu se mouvait au-dessus des eaux.",
-            "3|Dieu dit: Que la lumière soit! Et la lumière fut.",
-            "4|Dieu vit que la lumière était bonne; et Dieu sépara la lumière d'avec les ténèbres."
-        ),
-        "Psaumes|23" to listOf(
-            "1|L'Éternel est mon berger: je ne manquerai de rien.",
-            "2|Il me fait reposer dans de verts pâturages, Il me dirige près des eaux paisibles.",
-            "3|Il restaure mon âme, Il me conduit dans les sentiers de la justice, à cause de son nom."
-        ),
-        "Jean|3" to listOf(
-            "16|Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle.",
-            "17|Dieu, en effet, n'a pas envoyé son Fils dans le monde pour qu'il juge le monde, mais pour que le monde soit sauvé par lui."
-        ),
-        "Matthieu|5" to listOf(
-            "3|Heureux les pauvres en esprit, car le royaume des cieux est à eux!",
-            "4|Heureux les affligés, car ils seront consolés!",
-            "9|Heureux ceux qui procurent la paix, car ils seront appelés fils de Dieu!"
-        )
-    )
+    // Bible Louis Segond 1910 complète, embarquée comme ressource hors ligne.
+    private val bibleVerses: Map<String, List<String>> by lazy { loadBibleVerses() }
+
+    private fun loadBibleVerses(): Map<String, List<String>> {
+        val json = assets.open("bible.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val data = org.json.JSONArray(json)
+        val grouped = mutableMapOf<String, MutableList<String>>()
+        for (i in 0 until data.length()) {
+            val verse = data.getJSONObject(i)
+            val bookId = verse.optInt("book", 0)
+            if (bookId !in 1..books.size) continue
+            val chapterNumber = verse.optInt("chapter", 0)
+            val verseNumber = verse.optInt("verse", 0)
+            val verseText = verse.optString("text", "").trim()
+            if (chapterNumber < 1 || verseNumber < 1 || verseText.isEmpty()) continue
+            val key = books[bookId - 1] + "|" + chapterNumber
+            grouped.getOrPut(key) { mutableListOf() }.add(verseNumber.toString() + "|" + verseText)
+        }
+        return grouped.mapValues { (_, rows) ->
+            rows.sortedBy { it.substringBefore("|").toIntOrNull() ?: 0 }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -171,7 +170,7 @@ class MainActivity : Activity() {
         root.addView(chapterRow)
 
         val note = TextView(this).apply {
-            text = "VERSION ACTUELLE : aperçu de démonstration"
+            text = "BIBLE COMPLÈTE HORS LIGNE · LOUIS SEGOND 1910"
             textSize = 10f
             letterSpacing = 0.06f
             typeface = Typeface.DEFAULT_BOLD
@@ -195,7 +194,7 @@ class MainActivity : Activity() {
         nav.addView(makeButton("Suivant →", forest, Color.WHITE) { moveChapter(1) },
             LinearLayout.LayoutParams(0, dp(48), 1f))
         root.addView(nav)
-        val footer = label("Une interface simple pour lire, méditer et garder ses versets préférés.", 11f, muted, false)
+        val footer = label("Louis Segond 1910 · texte du domaine public · édition Bibebook", 11f, muted, false)
         footer.gravity = Gravity.CENTER
         footer.setPadding(dp(10), dp(18), dp(10), dp(8))
         root.addView(footer)
@@ -205,12 +204,12 @@ class MainActivity : Activity() {
     private fun refreshChapter() {
         heading.text = books[bookIndex] + " " + chapter
         content.removeAllViews()
-        val verses = demoVerses[books[bookIndex] + "|" + chapter]
+        val verses = bibleVerses[books[bookIndex] + "|" + chapter]
         if (verses.isNullOrEmpty()) {
             val empty = card()
             empty.orientation = LinearLayout.VERTICAL
-            empty.addView(label("Ce chapitre arrive bientôt", 17f, forest, true))
-            val msg = label("La navigation et les favoris sont déjà disponibles. Le texte complet du PDF Louis Segond 1910 reste à importer dans l'application.", 14f, muted, false)
+            empty.addView(label("Texte indisponible", 17f, forest, true))
+            val msg = label("Aucun verset n’a été trouvé pour ce chapitre dans la ressource biblique embarquée.", 14f, muted, false)
             msg.setPadding(0, dp(8), 0, 0)
             msg.setLineSpacing(dp(4).toFloat(), 1f)
             empty.addView(msg)
@@ -273,13 +272,13 @@ class MainActivity : Activity() {
 
     private fun search() {
         val input = EditText(this).apply { hint = "Mot, référence ou livre" }
-        AlertDialog.Builder(this).setTitle("Rechercher dans les extraits")
+        AlertDialog.Builder(this).setTitle("Rechercher dans toute la Bible")
             .setView(input).setNegativeButton("Annuler", null)
             .setPositiveButton("Rechercher") { _, _ ->
                 val query = input.text.toString().trim()
                 if (query.isEmpty()) { toast("Entre un mot ou une référence."); return@setPositiveButton }
                 val results = mutableListOf<Pair<String, String>>()
-                demoVerses.forEach { (reference, rows) ->
+                bibleVerses.forEach { (reference, rows) ->
                     rows.forEach { line ->
                         val parts = line.split("|", limit = 2)
                         val refParts = reference.split("|")
@@ -289,7 +288,7 @@ class MainActivity : Activity() {
                 }
                 if (results.isEmpty()) {
                     AlertDialog.Builder(this).setTitle("Aucun résultat")
-                        .setMessage("Aucun résultat dans les extraits présents dans cette version.")
+                        .setMessage("Aucun résultat trouvé dans la Bible complète.")
                         .setPositiveButton("OK", null).show()
                 } else {
                     AlertDialog.Builder(this).setTitle("Résultats : " + results.size)
