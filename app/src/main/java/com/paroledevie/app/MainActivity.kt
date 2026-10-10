@@ -225,7 +225,7 @@ class MainActivity : Activity() {
                 verseCard.orientation = LinearLayout.HORIZONTAL
                 verseCard.gravity = Gravity.TOP
                 val numberView = TextView(this).apply {
-                    text = number.padStart(2, '0')
+                    this.text = number.padStart(2, '0')
                     textSize = 12f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(forest)
