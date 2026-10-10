@@ -26,3 +26,6 @@ L'APK de test se trouve dans l'artefact `parole-de-vie-apk-debug` du workflow. L
 - Kotlin 2.0.21
 - Gradle 8.9
 - Android compileSdk 35
+
+
+<!-- Déclenchement de validation du build GitHub Actions. -->
