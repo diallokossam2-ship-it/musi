@@ -253,7 +253,7 @@ class MainActivity : Activity() {
         setScreen("search","Recherche biblique","Un mot ou une référence, puis ouverture directe du passage")
         val b=body()
         val field=EditText(this).apply {
-            hint="Ex. amour, Jean 3:16, Psaume 23";textSize=16f;singleLine=true
+            hint="Ex. amour, Jean 3:16, Psaume 23";textSize=16f;maxLines=1
             setPadding(dp(14),dp(12),dp(14),dp(12));background=shape(Color.WHITE,14)
         }
         b.addView(field,fullWidth())
